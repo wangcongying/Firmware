@@ -3032,10 +3032,10 @@ int AttPosEKF::CheckAndBound(struct ekf_status_report *last_error)
         // Fill error report
         GetFilterState(&last_ekf_error);
 
+        ResetStoredStates();
         ResetVelocity();
         ResetPosition();
         ResetHeight();
-        ResetStoredStates();
 
         // Timeout cleared with this reset
         current_ekf_state.imuTimeout = false;
@@ -3049,10 +3049,10 @@ int AttPosEKF::CheckAndBound(struct ekf_status_report *last_error)
         // Fill error report, but not setting error flag
         GetFilterState(&last_ekf_error);
 
+        ResetStoredStates();
         ResetVelocity();
         ResetPosition();
         ResetHeight();
-        ResetStoredStates();
 
         ret = 0;
     }
@@ -3222,10 +3222,10 @@ void AttPosEKF::InitializeDynamic(float (&initvelNED)[3], float declination)
     states[20] = magBias.y; // Magnetic Field Bias Y
     states[21] = magBias.z; // Magnetic Field Bias Z
 
+    ResetStoredStates();
     ResetVelocity();
     ResetPosition();
     ResetHeight();
-    ResetStoredStates();
 
     // initialise focal length scale factor estimator states
     flowStates[0] = 1.0f;
