@@ -76,7 +76,8 @@ MODULES 	+= modules/land_detector
 #
 # Estimation modules (EKF/ SO3 / other filters)
 #
-MODULES		+= modules/attitude_estimator_ekf
+# Removed from build due to large static allocations
+#MODULES		+= modules/attitude_estimator_ekf
 MODULES		+= modules/attitude_estimator_q
 MODULES		+= modules/ekf_att_pos_estimator
 MODULES		+= modules/position_estimator_inav
