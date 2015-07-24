@@ -15,8 +15,8 @@ public:
 	~LogTool();
 
 public:
-	void logSub(const char* topic_name, bool is_updated, const char* data_str);
-	void logPub(const char* topic_name, const char* data_str);
+	void logSub(const char* topic_name, bool is_updated, int data_size, const char* data_str);
+	void logPub(const char* topic_name, int data_size, const char* data_str);
 	void logPull(const char* topic_name, const pollevent_t *revents, int ret);
 	void logTime(const hrt_abstime &t);
 

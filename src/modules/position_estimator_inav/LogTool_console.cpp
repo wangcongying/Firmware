@@ -10,11 +10,11 @@ LogTool::LogTool()
 LogTool::~LogTool(){
 }
 
-void LogTool::logSub(const char* topic_name, bool is_updated, const char* data_str){
+void LogTool::logSub(const char* topic_name, bool is_updated, int data_size, const char* data_str){
 	printf("[SUB]	%s	%d	%s\n", topic_name, is_updated, data_str);
 }
 
-void LogTool::logPub(const char*  topic_name, const char* data_str){
+void LogTool::logPub(const char*  topic_name, int data_size, const char* data_str){
 	printf("[PUB]	%s	%s\n", topic_name, data_str);
 }
 

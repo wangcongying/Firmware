@@ -1,19 +1,20 @@
 #include "DataSource_realtime.h"
 #include "LogTool.h"
-#include "DataSerializer.h"
+#include <string.h>
 
-#define getData(topic_name, sub, orb_id, is_updated, data, log_tool, parse_func)\
+#define getData(topic_name, sub, orb_id, is_updated, data, log_tool)\
 	orb_check(sub, is_updated);\
 	orb_copy(orb_id, sub, data);\
 	if(log_tool){\
 		assert(data);\
-		char * datastr = new char [1000];\
-		parse_func(data, datastr);\
-		log_tool->logSub(topic_name, is_updated, datastr);\
-		delete datastr;\
+		int data_size = sizeof(*data);\
+		char * data_str = new char [data_size];\
+		memcpy(data_str, data, data_size);\
+		log_tool->logSub(topic_name, is_updated, data_size, data_str);\
+		delete data_str;\
 	}
 
-#define pubData(topic_name, pub, orb_id, data, log_tool, parse_func)\
+#define pubData(topic_name, pub, orb_id, data, log_tool)\
 	if (pub == NULL) {\
 		pub = orb_advertise(orb_id, data);\
 	} else {\
@@ -21,10 +22,11 @@
 	}\
 	if(log_tool){\
 		assert(data);\
-		char * datastr = new char [1000];\
-		parse_func(data, datastr);\
-		log_tool->logPub(topic_name, datastr);\
-		delete datastr;\
+		int data_size = sizeof(*data);\
+		char * data_str = new char [data_size];\
+		memcpy(data_str, data, data_size);\
+		log_tool->logPub(topic_name, data_size, data_str);\
+		delete data_str;\
 	}
 
 DataSource_realtime::DataSource_realtime(bool need_log)
@@ -88,49 +90,49 @@ hrt_abstime DataSource_realtime::getAbsoluteTime(){
 }
 
 void DataSource_realtime::getParameter(bool *is_updated, struct parameter_update_s * data){
-	getData("Parameter", _parameter_update_sub, ORB_ID(parameter_update), is_updated, data, _log_tool, DataSerializer::serializeParameter);
+	getData("Parameter", _parameter_update_sub, ORB_ID(parameter_update), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getSensorCombined(bool *is_updated, struct sensor_combined_s * data){
-	getData("SensorCombined", _sensor_combined_sub, ORB_ID(sensor_combined), is_updated, data, _log_tool, DataSerializer::serializeSensorCombined);
+	getData("SensorCombined", _sensor_combined_sub, ORB_ID(sensor_combined), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getVehicleAttitude(bool *is_updated, struct vehicle_attitude_s * data){
-	getData("VehicleAttitude", _vehicle_attitude_sub, ORB_ID(vehicle_attitude), is_updated, data, _log_tool, DataSerializer::serializeVehicleAttitude);
+	getData("VehicleAttitude", _vehicle_attitude_sub, ORB_ID(vehicle_attitude), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getActuatorControls(bool *is_updated, struct actuator_controls_s * data){
-	getData("ActuatorControls", _actuator_sub, ORB_ID_VEHICLE_ATTITUDE_CONTROLS, is_updated, data, _log_tool, DataSerializer::serializeActuatorControls);
+	getData("ActuatorControls", _actuator_sub, ORB_ID_VEHICLE_ATTITUDE_CONTROLS, is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getActuatorArmed(bool *is_updated, struct actuator_armed_s * data){
-	getData("ActuatorArmed", _armed_sub, ORB_ID(actuator_armed), is_updated, data, _log_tool, DataSerializer::serializeActuatorArmed);
+	getData("ActuatorArmed", _armed_sub, ORB_ID(actuator_armed), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getOpticalFlow(bool *is_updated, struct optical_flow_s * data){
-	getData("OpticalFlow", _optical_flow_sub, ORB_ID(optical_flow), is_updated, data, _log_tool, DataSerializer::serializeOpticalFlow);
+	getData("OpticalFlow", _optical_flow_sub, ORB_ID(optical_flow), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getHomePosition(bool *is_updated, struct home_position_s * data){
-	getData("HomePosition", _home_position_sub, ORB_ID(home_position), is_updated, data, _log_tool, DataSerializer::serializeHomePosition);
+	getData("HomePosition", _home_position_sub, ORB_ID(home_position), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getVisionPositionEstimate(bool *is_updated, struct vision_position_estimate_s * data){
-	getData("VisionPositionEstimate", _vision_position_estimate_sub, ORB_ID(vision_position_estimate), is_updated, data, _log_tool, DataSerializer::serializeVisionPositionEstimate);
+	getData("VisionPositionEstimate", _vision_position_estimate_sub, ORB_ID(vision_position_estimate), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getAttPosMocap(bool *is_updated, struct att_pos_mocap_s * data){
-	getData("AttPosMocap", _att_pos_mocap_sub, ORB_ID(att_pos_mocap), is_updated, data, _log_tool, DataSerializer::serializeAttPosMocap);
+	getData("AttPosMocap", _att_pos_mocap_sub, ORB_ID(att_pos_mocap), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::getVehicleGpsPosition(bool *is_updated, struct vehicle_gps_position_s * data){
-	getData("VehicleGpsPosition", _vehicle_gps_position_sub, ORB_ID(vehicle_gps_position), is_updated, data, _log_tool, DataSerializer::serializeVehicleGpsPosition);
+	getData("VehicleGpsPosition", _vehicle_gps_position_sub, ORB_ID(vehicle_gps_position), is_updated, data, _log_tool);
 }
 
 void DataSource_realtime::pubVehicleGlobalPosition(struct vehicle_global_position_s *global_pos){
-	pubData("VehicleGlobalPosition", _vehicle_global_position_pub, ORB_ID(vehicle_global_position), global_pos, _log_tool, DataSerializer::serializeVehicleGlobalPosition);
+	pubData("VehicleGlobalPosition", _vehicle_global_position_pub, ORB_ID(vehicle_global_position), global_pos, _log_tool);
 }
 
 void DataSource_realtime::pubVehicleLocalPosition(struct vehicle_local_position_s *local_pos){
-	pubData("VehicleLocalPosition", _vehicle_local_position_pub, ORB_ID(vehicle_local_position), local_pos, _log_tool, DataSerializer::serializeVehicleLocalPosition);
+	pubData("VehicleLocalPosition", _vehicle_local_position_pub, ORB_ID(vehicle_local_position), local_pos, _log_tool);
 }

@@ -42,8 +42,7 @@ SRCS		 	= position_estimator_inav_main.c \
 			position_estimator_inav.cpp \
 			DataSource_realtime.cpp \
 			position_estimator_inav_realtime.cpp \
-			LogTool_file.cpp \
-			DataSerializer.cpp
+			LogTool_file.cpp
 
 MODULE_STACKSIZE = 1200
 

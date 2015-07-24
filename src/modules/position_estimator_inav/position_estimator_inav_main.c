@@ -436,10 +436,10 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 			/* actuator */
-			get_actuator_controls(&updated, &actuator);
+			get_actuator_controls(&updated, &actuator);// ???? not used??? by wcy
 
 			/* armed */
-			get_actuator_armed(&updated, &armed);
+			get_actuator_armed(&updated, &armed);// ???? not used??? by wcy
 
 			/* sensor combined */
 			get_sensor_combined(&updated, &sensor);

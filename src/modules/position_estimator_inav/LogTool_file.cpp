@@ -12,7 +12,7 @@ LogTool::LogTool()
 	time(&curr_timestamp);
 	char *file_path_name = new char [255];
 	sprintf(file_path_name,"/fs/microsd/log/playback/%d.sdlog", curr_timestamp);
-	_log_file = open(file_path_name, O_CREAT | O_WRONLY | O_DSYNC, 0x0777);
+	_log_file = open(file_path_name, O_CREAT | O_WRONLY | O_DSYNC | O_BINARY, 0x0777);
 	delete file_path_name;
 }
 
@@ -24,13 +24,13 @@ LogTool::~LogTool(){
 	}
 }
 
-void LogTool::logSub(const char* topic_name, bool is_updated, const char* data_str){
-	dprintf(_log_file, "[SUB]	%s	%d	%s\n", topic_name, is_updated, data_str);
+void LogTool::logSub(const char* topic_name, bool is_updated, int data_size, const char* data_str){
+	dprintf(_log_file, "[SUB]	%s	%d	%d	%s\n", topic_name, is_updated, data_size, data_str);
 	fsync(_log_file);
 }
 
-void LogTool::logPub(const char*  topic_name, const char* data_str){
-	dprintf(_log_file, "[PUB]	%s	%s\n", topic_name, data_str);
+void LogTool::logPub(const char*  topic_name, int data_size, const char* data_str){
+	dprintf(_log_file, "[PUB]	%s	%d	%s\n", topic_name, data_size, data_str);
 	fsync(_log_file);
 }
 
