@@ -68,7 +68,6 @@
 #include <uORB/topics/home_position.h>
 #include <uORB/topics/optical_flow.h>
 #include <mavlink/mavlink_log.h>
-#include <poll.h>
 #include <systemlib/err.h>
 #include <geo/geo.h>
 #include <systemlib/systemlib.h>
@@ -77,6 +76,7 @@
 
 #include "position_estimator_inav_params.h"
 #include "inertial_filter.h"
+#include "position_estimator_inav.h"
 
 #define MIN_VALID_W 0.00001f
 #define PUB_INTERVAL 10000	// limit publish rate to 100 Hz
@@ -164,11 +164,9 @@ int position_estimator_inav_main(int argc, char *argv[])
 		if (thread_running) {
 			warnx("stop");
 			thread_should_exit = true;
-
 		} else {
 			warnx("not started");
 		}
-
 		return 0;
 	}
 
@@ -197,7 +195,7 @@ static void write_debug_log(const char *msg, float dt, float x_est[2], float y_e
 	if (f) {
 		char *s = malloc(256);
 		unsigned n = snprintf(s, 256, "%llu %s\n\tdt=%.5f x_est=[%.5f %.5f] y_est=[%.5f %.5f] z_est=[%.5f %.5f] x_est_prev=[%.5f %.5f] y_est_prev=[%.5f %.5f] z_est_prev=[%.5f %.5f]\n",
-                              (unsigned long long)hrt_absolute_time(), msg, (double)dt,
+                              (unsigned long long)get_absolute_time(), msg, (double)dt,
                               (double)x_est[0], (double)x_est[1], (double)y_est[0], (double)y_est[1], (double)z_est[0], (double)z_est[1],
                               (double)x_est_prev[0], (double)x_est_prev[1], (double)y_est_prev[0], (double)y_est_prev[1], (double)z_est_prev[0], (double)z_est_prev[1]);
 		fwrite(s, 1, n, f);
@@ -222,6 +220,10 @@ static void write_debug_log(const char *msg, float dt, float x_est[2], float y_e
  ****************************************************************************/
 int position_estimator_inav_thread_main(int argc, char *argv[])
 {
+	printf("To init\n");
+	initIO(true);
+	printf("Inited\n");
+
 	int mavlink_fd;
 	mavlink_fd = px4_open(MAVLINK_LOG_DEVICE, 0);
 
@@ -280,8 +282,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	uint16_t vision_updates = 0;
 	uint16_t mocap_updates = 0;
 
-	hrt_abstime updates_counter_start = hrt_absolute_time();
-	hrt_abstime pub_last = hrt_absolute_time();
+	hrt_abstime updates_counter_start = get_absolute_time();
+	hrt_abstime pub_last = get_absolute_time();
 
 	hrt_abstime t_prev = 0;
 
@@ -351,21 +353,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	struct vehicle_global_position_s global_pos;
 	memset(&global_pos, 0, sizeof(global_pos));
 
-	/* subscribe */
-	int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
-	int actuator_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
-	int armed_sub = orb_subscribe(ORB_ID(actuator_armed));
-	int sensor_combined_sub = orb_subscribe(ORB_ID(sensor_combined));
-	int vehicle_attitude_sub = orb_subscribe(ORB_ID(vehicle_attitude));
-	int optical_flow_sub = orb_subscribe(ORB_ID(optical_flow));
-	int vehicle_gps_position_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
-	int vision_position_estimate_sub = orb_subscribe(ORB_ID(vision_position_estimate));
-	int att_pos_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
-	int home_position_sub = orb_subscribe(ORB_ID(home_position));
-
-	/* advertise */
-	orb_advert_t vehicle_local_position_pub = orb_advertise(ORB_ID(vehicle_local_position), &local_pos);
-	orb_advert_t vehicle_global_position_pub = NULL;
+	pub_vehicle_local_position(&local_pos);
 
 	struct position_estimator_inav_params params;
 	struct position_estimator_inav_param_handles pos_inav_param_handles;
@@ -373,42 +361,40 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	inav_parameters_init(&pos_inav_param_handles);
 
 	/* first parameters read at start up */
+	bool updated = false;
 	struct parameter_update_s param_update;
-	orb_copy(ORB_ID(parameter_update), parameter_update_sub, &param_update); /* read from param topic to clear updated flag */
+	get_parameter(&updated, &param_update);
 	/* first parameters update */
 	inav_parameters_update(&pos_inav_param_handles, &params);
-
-	px4_pollfd_struct_t fds_init[1] = {
-		{ .fd = sensor_combined_sub, .events = POLLIN },
-	};
 
 	/* wait for initial baro value */
 	bool wait_baro = true;
 
 	thread_running = true;
-
 	while (wait_baro && !thread_should_exit) {
-		int ret = px4_poll(fds_init, 1, 1000);
+		pollevent_t revents;
+		int ret = get_sensor_combined_pull(&revents);
+		warnx("get_sensor_combined_pull ret:%d", ret);
 
 		if (ret < 0) {
 			/* poll error */
 			mavlink_log_info(mavlink_fd, "[inav] poll error on init");
 
 		} else if (ret > 0) {
-			if (fds_init[0].revents & POLLIN) {
-				orb_copy(ORB_ID(sensor_combined), sensor_combined_sub, &sensor);
-
+			if (revents & POLLIN) {
+				get_sensor_combined(&updated, &sensor);
 				if (wait_baro && sensor.baro_timestamp != baro_timestamp) {
 					baro_timestamp = sensor.baro_timestamp;
-
 					/* mean calculation over several measurements */
+					warnx("baro_init_num: %d",baro_init_num);
+					warnx("baro_init_cnt: %d",baro_init_cnt);
 					if (baro_init_cnt < baro_init_num) {
 						if (isfinite(sensor.baro_alt_meter)) {
 							baro_offset += sensor.baro_alt_meter;
 							baro_init_cnt++;
 						}
-
 					} else {
+						warnx("baro done");
 						wait_baro = false;
 						baro_offset /= (float) baro_init_cnt;
 						warnx("baro offset: %d m", (int)baro_offset);
@@ -421,17 +407,17 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 		}
 	}
 
+	warnx("start main loop");
 	/* main loop */
-	px4_pollfd_struct_t fds[1] = {
-		{ .fd = vehicle_attitude_sub, .events = POLLIN },
-	};
-
 	while (!thread_should_exit) {
-		int ret = px4_poll(fds, 1, 20); // wait maximal 20 ms = 50 Hz minimum rate
-		hrt_abstime t = hrt_absolute_time();
+		pollevent_t revents;
+		int ret = get_vehicle_attitude_pull(&revents);
+
+		hrt_abstime t = get_absolute_time();
 
 		if (ret < 0) {
 			/* poll error */
+			warnx("poll error on init");
 			mavlink_log_info(mavlink_fd, "[inav] poll error on init");
 			continue;
 
@@ -439,40 +425,25 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			/* act on attitude updates */
 
 			/* vehicle attitude */
-			orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
+			get_vehicle_attitude(&updated, &att);
 			attitude_updates++;
 
-			bool updated;
-
 			/* parameter update */
-			orb_check(parameter_update_sub, &updated);
-
+			struct parameter_update_s update;
+			get_parameter(&updated, &update);
 			if (updated) {
-				struct parameter_update_s update;
-				orb_copy(ORB_ID(parameter_update), parameter_update_sub, &update);
 				inav_parameters_update(&pos_inav_param_handles, &params);
 			}
 
 			/* actuator */
-			orb_check(actuator_sub, &updated);
-
-			if (updated) {
-				orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_sub, &actuator);
-			}
+			get_actuator_controls(&updated, &actuator);
 
 			/* armed */
-			orb_check(armed_sub, &updated);
-
-			if (updated) {
-				orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
-			}
+			get_actuator_armed(&updated, &armed);
 
 			/* sensor combined */
-			orb_check(sensor_combined_sub, &updated);
-
+			get_sensor_combined(&updated, &sensor);
 			if (updated) {
-				orb_copy(ORB_ID(sensor_combined), sensor_combined_sub, &sensor);
-
 				if (sensor.accelerometer_timestamp != accel_timestamp) {
 					if (att.R_valid) {
 						/* correct accel bias */
@@ -507,14 +478,11 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 			/* optical flow */
-			orb_check(optical_flow_sub, &updated);
-
+			get_optical_flow(&updated, &flow);
 			if (updated) {
-				orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
-
 				/* calculate time from previous update */
-//				float flow_dt = flow_prev > 0 ? (flow.flow_timestamp - flow_prev) * 1e-6f : 0.1f;
-//				flow_prev = flow.flow_timestamp;
+				//float flow_dt = flow_prev > 0 ? (flow.flow_timestamp - flow_prev) * 1e-6f : 0.1f;
+				//flow_prev = flow.flow_timestamp;
 
 				if ((flow.ground_distance_m > 0.31f) &&
 					(flow.ground_distance_m < 4.0f) &&
@@ -617,11 +585,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 			/* home position */
-			orb_check(home_position_sub, &updated);
-
+			get_home_position(&updated, &home);
 			if (updated) {
-				orb_copy(ORB_ID(home_position), home_position_sub, &home);
-
 				if (home.timestamp != home_timestamp) {
 					home_timestamp = home.timestamp;
 
@@ -659,11 +624,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			/* check no vision circuit breaker is set */
 			if (params.no_vision != CBRK_NO_VISION_KEY) {
 				/* vehicle vision position */
-				orb_check(vision_position_estimate_sub, &updated);
-
+				get_vision_position_estimate(&updated, &vision);
 				if (updated) {
-					orb_copy(ORB_ID(vision_position_estimate), vision_position_estimate_sub, &vision);
-
 					static float last_vision_x = 0.0f;
 					static float last_vision_y = 0.0f;
 					static float last_vision_z = 0.0f;
@@ -726,11 +688,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 			/* vehicle mocap position */
-			orb_check(att_pos_mocap_sub, &updated);
-
+			get_att_pos_mocap(&updated, &mocap);
 			if (updated) {
-				orb_copy(ORB_ID(att_pos_mocap), att_pos_mocap_sub, &mocap);
-
 				/* reset position estimate on first mocap update */
 				if (!mocap_valid) {
 					x_est[0] = mocap.x;
@@ -752,11 +711,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 			/* vehicle GPS position */
-			orb_check(vehicle_gps_position_sub, &updated);
-
+			get_vehicle_gps_position(&updated, &gps);
 			if (updated) {
-				orb_copy(ORB_ID(vehicle_gps_position), vehicle_gps_position_sub, &gps);
-
 				bool reset_est = false;
 
 				/* hysteresis for GPS quality */
@@ -859,6 +815,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 		}
 
+		warnx("start checking for timeouts");
 		/* check for timeout on FLOW topic */
 		if ((flow_valid || sonar_valid) && t > flow.timestamp + flow_topic_timeout) {
 			flow_valid = false;
@@ -1232,7 +1189,7 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 
 			local_pos.timestamp = t;
 
-			orb_publish(ORB_ID(vehicle_local_position), vehicle_local_position_pub, &local_pos);
+			pub_vehicle_local_position(&local_pos);
 
 			if (local_pos.xy_global && local_pos.z_global) {
 				/* publish global position */
@@ -1255,12 +1212,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 				global_pos.eph = eph;
 				global_pos.epv = epv;
 
-				if (vehicle_global_position_pub == NULL) {
-					vehicle_global_position_pub = orb_advertise(ORB_ID(vehicle_global_position), &global_pos);
-
-				} else {
-					orb_publish(ORB_ID(vehicle_global_position), vehicle_global_position_pub, &global_pos);
-				}
+				pub_vehicle_global_position(&global_pos);
+				warnx("publish vehicle_global_position");
 			}
 		}
 	}
@@ -1268,5 +1221,6 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 	warnx("stopped");
 	mavlink_log_info(mavlink_fd, "[inav] stopped");
 	thread_running = false;
+	closeIO();
 	return 0;
 }

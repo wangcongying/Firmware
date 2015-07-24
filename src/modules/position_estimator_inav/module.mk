@@ -38,7 +38,12 @@
 MODULE_COMMAND	 	= position_estimator_inav
 SRCS		 	= position_estimator_inav_main.c \
 			position_estimator_inav_params.c \
-			inertial_filter.c
+			inertial_filter.c \
+			position_estimator_inav.cpp \
+			DataSource_realtime.cpp \
+			position_estimator_inav_realtime.cpp \
+			LogTool_file.cpp \
+			DataSerializer.cpp
 
 MODULE_STACKSIZE = 1200
 
