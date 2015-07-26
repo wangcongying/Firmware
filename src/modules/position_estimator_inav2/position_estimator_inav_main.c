@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 /**
- * @file position_estimator_inav_main.c
+ * @file position_estimator_inav2_main.c
  * Model-identification based position estimator for multirotors
  *
  * @author Anton Babushkin <anton.babushkin@me.com>
@@ -96,7 +96,7 @@ static const hrt_abstime sonar_valid_timeout = 1000000;	// estimate sonar distan
 static const unsigned updates_counter_len = 1000000;
 static const float max_flow = 1.0f;	// max flow value that can be used, rad/s
 
-__EXPORT int position_estimator_inav_main(int argc, char *argv[]);
+__EXPORT int position_estimator_inav2_main(int argc, char *argv[]);
 
 int position_estimator_inav_thread_main(int argc, char *argv[]);
 
@@ -121,7 +121,7 @@ static void usage(const char *reason)
 		fprintf(stderr, "%s\n", reason);
 	}
 
-	fprintf(stderr, "usage: position_estimator_inav {start|stop|status} [-v]\n\n");
+	fprintf(stderr, "usage: position_estimator_inav2 {start|stop|status} [-v]\n\n");
 	return;
 }
 
@@ -133,7 +133,7 @@ static void usage(const char *reason)
  * The actual stack size should be set in the call
  * to task_create().
  */
-int position_estimator_inav_main(int argc, char *argv[])
+int position_estimator_inav2_main(int argc, char *argv[])
 {
 	if (argc < 2) {
 		usage("missing command");
@@ -153,7 +153,7 @@ int position_estimator_inav_main(int argc, char *argv[])
 		}
 
 		thread_should_exit = false;
-		position_estimator_inav_task = px4_task_spawn_cmd("position_estimator_inav",
+		position_estimator_inav_task = px4_task_spawn_cmd("2",
 					       SCHED_DEFAULT, SCHED_PRIORITY_MAX - 5, 5000,
 					       position_estimator_inav_thread_main,
 					       (argv && argc > 2) ? (char * const *) &argv[2] : (char * const *) NULL);

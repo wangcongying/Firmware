@@ -35,7 +35,7 @@
 # Makefile to build position_estimator_inav
 #
 
-MODULE_COMMAND	 	= position_estimator_inav
+MODULE_COMMAND	 	= position_estimator_inav2
 SRCS		 	= position_estimator_inav_main.c \
 			position_estimator_inav_params.c \
 			inertial_filter.c \
